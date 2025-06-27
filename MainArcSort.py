@@ -16,36 +16,67 @@ parser = ap.ArgumentParser(description='PFC: Main Arc Sorting')
 parser.add_argument('-s', '--sheet', type=str, required=True, help='Excel Spreadsheet in CSV format')
 args = parser.parse_args()
 
-data = pd.read_csv(args.data, converters={'Person': str}) #Have a column labled Person.
+data = pd.read_csv(args.sheet, converters={"Player Name": str}) #Turns column labled Player Name into a str.
+##Might need other columns to be labled string too (Preffered Player 1 and 2 specifically)
+## Replace N/A with 10 in data (so that they are labled as "last picks")
 
-students = data["Person"] #Have this take from the Student section of the Excel Sheet
-#UPDATE: Update the campaign names here to match the names in [capacity]
-campaigns = ["H1", "H2", "H3"] #Campaign Names or Number, whichever the sheet puts into the backend
+indexes = [3,4,5,6,7,8,9,10,11]
+#UPDATE: Update the campaign names here to match the names in [capacity] and on the excel sheet
+campaigns = data.iloc[:, indexes].columns.tolist() #Obtain Campaign Names
+#print(campaigns)
 
 # capacity of each Campaign
     #UPDATE: Update this when people have limits for their campaigns
-    #Also Update name
+    #Also Update names to match the ones in [campaigns]
 # TODO: Possibly update this with an option for people to break caps depending on total # of newbies?
-capacity = {"H1": 2, "H2": 2, "H3": 2} 
+capacity = data.iloc[0, indexes].to_dict()
+data = data.iloc[1:] #Removes the capacity row
+students_df = data.iloc[:, 1] #Have this take from the Student section of the Excel Sheet
+students = students_df.tolist()
+print(students)
 
 #   rank[i][j] = how student i ranks house j  (1 = best, larger = worse)
 #This will be inputted from the excel spreadsheet, look within data
-# TODO: Update rank with the correct equation
-# Should be able to just put dataframe, "Student Name/Column: {[Campaign Name]: [rank], etc}"
-rank = {
-    "A": {"H1": 1, "H2": 2, "H3": 3},
-    "B": {"H1": 1, "H2": 2, "H3": 3},
-    "C": {"H1": 2, "H2": 1, "H3": 3},
-    "D": {"H1": 3, "H2": 1, "H3": 2},
-    "E": {"H1": 3, "H2": 2, "H3": 1},
-    "F": {"H1": 2, "H2": 3, "H3": 1},
-}
+rank_df = data.iloc[:, [3,4,5,6,7,8,9,10,11]] # Selects the Player name column + the campaign name columns
+rank_df = rank_df.fillna(value=10) # Fill every unfilled value with 10 (ranked last) (All have equal chance of being filled if it gets to that)
+rank = {}
+rank_temp = {}
+for x in range(len(rank_df.index)):
+    rank_temp = dict(zip(campaigns,rank_df.iloc[x,[0,1,2,3,4,5,6,7,8]])) #Make every rank into a dictionary
+    rank[students_df.iloc[x]] = (rank_temp) #Add ^^ dictionary as the value associated w/ the name in the [Rank] dictionary
+
 
 # friendship (“try to keep us together”) pairs
 # TODO: Update friend_pairs with the correct equation
-friend_pairs = {("A", "B"), ("C", "D"), ("E", "F")}  # undirected
+"""
+-Pair for each person 1 and 2
+-IF: if already in the list, skip
+-If not, add the pair
+-If NAN, skip too
+"""
+friends_df = data.iloc[:, [1,12,13]]
+friends_df = friends_df.fillna(value="NONE")
+#print(friends_df)
+#print(friends_df.iloc[2, 1])
 
-# TODO: Add enemy pairs
+friend_pairs = []  # undirected
+for x in range(len(friends_df.index)): 
+    name = friends_df.iloc[x, 0]
+    prefPerson1 = friends_df.iloc[x, 1]
+    prefPerson2 = friends_df.iloc[x, 2]
+
+    #Check if the first Name,PP1 is in the friends list already
+    if (prefPerson1 != "NONE"):
+        if (not (((name,prefPerson1) in friend_pairs) or ((prefPerson1, name) in friend_pairs))): 
+            friend_pairs.append((name,prefPerson1))
+    
+    #Check if the second Name,PP1 is in the friends list already
+    if (prefPerson2 != "NONE"):
+        if (not (((name,prefPerson2) in friend_pairs) or ((prefPerson2, name) in friend_pairs))): {
+            friend_pairs.append((name,prefPerson2))
+        }
+
+# TODO: Add enemy pairs ("Do not put us together")
 
 lambda_1 = 2        # weight: how many “rank points” is splitting a pair worth?
 # For enemy pairs would putting the lambda as negative work?
@@ -60,11 +91,13 @@ prob = pl.LpProblem("Main_Arc_Sorting", pl.LpMinimize)
 x = pl.LpVariable.dicts("x", (students, campaigns), cat="Binary")
 
 # Binary separation vars for each friendship pair
-sigma_1 = pl.LpVariable.dicts("delta", friend_pairs, cat="Binary")
+delta_1 = pl.LpVariable.dicts("delta", friend_pairs, cat="Binary")
 
 # --- Objective -------------------------------------------------------
-preference_cost = pl.lpSum(rank[i][j] * x[i][j] for i in students for j in campaigns)
-friend_cost     = pl.lpSum(lambda_1 * sigma_1[p] for p in friend_pairs)
+preference_cost = pl.lpSum(rank[i][j] * x[i][j] for i in students for j in campaigns) 
+    #^^ This multiplies the rank for each person by the cost for putting them in said campaign.
+    #So at the end it should be "the cost for putting I person in J campaign"
+friend_cost     = pl.lpSum(lambda_1 * delta_1[p] for p in friend_pairs)
 prob += preference_cost + friend_cost
 
 # --- Constraints -----------------------------------------------------
@@ -77,11 +110,11 @@ for j in campaigns:
     prob += pl.lpSum(x[i][j] for i in students) <= capacity[j], f"Cap_{j}"
 
 # (3) linearise “split?” for every friendship pair (i,k)
-#     sigma1_{ik} ≥ |x_{i,j} - x_{k,j}|  for all j
+#     delta1_{ik} ≥ |x_{i,j} - x_{k,j}|  for all j
 for (i, k) in friend_pairs:
     for j in campaigns:
-        prob += sigma_1[(i, k)] >= x[i][j] - x[k][j]
-        prob += sigma_1[(i, k)] >= x[k][j] - x[i][j]
+        prob += delta_1[(i, k)] >= x[i][j] - x[k][j]
+        prob += delta_1[(i, k)] >= x[k][j] - x[i][j]
 
 # ---------------------------------------------------------------------
 # 3)  SOLVE  ----------------------------------------------------------
@@ -102,6 +135,8 @@ for j in campaigns:
 
 print("\nFriendship splits:")
 for (i, k) in friend_pairs:
-    split = int(pl.value(sigma_1[(i, k)]))
+    split = int(pl.value(delta_1[(i, k)]))
     same  = "Correct" if split == 0 else "Split" 
     print(f" {i}-{k}: {'same campaign' if split == 0 else 'split'} {same}")
+
+#"""

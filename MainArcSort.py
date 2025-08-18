@@ -20,10 +20,15 @@ data = pd.read_csv(args.sheet, converters={"Player Name": str}) #Turns column la
 ##Might need other columns to be labled string too (Preffered Player 1 and 2 specifically)
 ## Replace N/A with 10 in data (so that they are labled as "last picks")
 
-indexes = [3,4,5,6,7,8,9,10,11]
-#UPDATE: Update the campaign names here to match the names in [capacity] and on the excel sheet
+#Get the number of columns, then subtract 6 
+#   (3 at the front: Timestamp, PlayerName, CharacterName)
+#   (3 at the end: WantedPlayer1, WantedPlayer2, UnwantedPlayer(s))
+campaign_numb = len(data.columns) - (3 + 3)
+indexes = []
+for x in range(3, (campaign_numb+3)): #3 is added because we want the colm numbers of the dataframe, and we're skipping the first 3 colms
+    indexes.append(x)
+
 campaigns = data.iloc[:, indexes].columns.tolist() #Obtain Campaign Names
-#print(campaigns)
 
 # capacity of each Campaign
     #UPDATE: Update this when people have limits for their campaigns
@@ -140,3 +145,4 @@ for (i, k) in friend_pairs:
     print(f" {i}-{k}: {'same campaign' if split == 0 else 'split'} {same}")
 
 #"""
+

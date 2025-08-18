@@ -59,7 +59,7 @@ for x in range(len(rank_df.index)):
 -If not, add the pair
 -If NAN, skip too
 """
-friends_df = data.iloc[:, [1,12,13]]
+friends_df = data.iloc[:, [1,(len(data.columns) - 2),(len(data.columns) - 1)]] #Grabing the 1st, 3rd to last, and 2nd to last columns 
 friends_df = friends_df.fillna(value="NONE")
 #print(friends_df)
 #print(friends_df.iloc[2, 1])
@@ -145,4 +145,5 @@ for (i, k) in friend_pairs:
     print(f" {i}-{k}: {'same campaign' if split == 0 else 'split'} {same}")
 
 #"""
+
 

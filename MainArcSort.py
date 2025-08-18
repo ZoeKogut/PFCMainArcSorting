@@ -75,7 +75,7 @@ for x in range(len(friends_df.index)):
         if (not (((name,prefPerson1) in friend_pairs) or ((prefPerson1, name) in friend_pairs))): 
             friend_pairs.append((name,prefPerson1))
     
-    #Check if the second Name,PP1 is in the friends list already
+    #Check if the second Name,PP2 is in the friends list already
     if (prefPerson2 != "NONE"):
         if (not (((name,prefPerson2) in friend_pairs) or ((prefPerson2, name) in friend_pairs))): {
             friend_pairs.append((name,prefPerson2))
@@ -145,5 +145,6 @@ for (i, k) in friend_pairs:
     print(f" {i}-{k}: {'same campaign' if split == 0 else 'split'} {same}")
 
 #"""
+
 
 

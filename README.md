@@ -18,3 +18,5 @@ https://docs.google.com/forms/d/1LwCmqdsbEx-Xj2Fzpx_EXjGeGwG1yJpDu_SrBFwpZNs/edi
 ### Assumptions:
 - It is assumed that you have gone through and verified/cleaned the groups.
   - To do this just make sure that the pairs line up, and delete any answers that do not.
+- It is also assumed that you do not change the template.
+  - The backend should have 3 columns before (Timestamp/PlayerName/CharName) and 3 columns (WantedPlayer1/2/UnwantedPlayer(s)) after the campaigns so the code can grab the indexes without issue.

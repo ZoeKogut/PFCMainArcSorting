@@ -59,7 +59,8 @@ for x in range(len(rank_df.index)):
 -If not, add the pair
 -If NAN, skip too
 """
-friends_df = data.iloc[:, [1,(len(data.columns) - 2),(len(data.columns) - 1)]] #Grabing the 1st, 3rd to last, and 2nd to last columns 
+friends_df = data.iloc[:, [1,(len(data.columns) - 3),(len(data.columns) - 2)]] #Grabing the 1st, 3rd to last, and 2nd to last columns 
+                                                                               #(adjusting for the difference between 0->X-1 and X (total) Column numbering)
 friends_df = friends_df.fillna(value="NONE")
 #print(friends_df)
 #print(friends_df.iloc[2, 1])
@@ -142,9 +143,10 @@ print("\nFriendship splits:")
 for (i, k) in friend_pairs:
     split = int(pl.value(delta_1[(i, k)]))
     same  = "Correct" if split == 0 else "Split" 
-    print(f" {i}-{k}: {'same campaign' if split == 0 else 'split'} {same}")
+    print(f" {i}-{k}: {'same campaign:' if split == 0 else 'different campaigns:'} {same}")
 
 #"""
+
 
 
 

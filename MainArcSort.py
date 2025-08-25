@@ -8,7 +8,6 @@ import argparse as ap
 
 # API: python MainArcSort.py -s [EXCEL_SPREADSHEET_NAME].csv
 
-
 # ---------------------------------------------------------------------
 # 1)  SAMPLE DATA  ----------------------------------------------------
 # ---------------------------------------------------------------------
@@ -16,7 +15,14 @@ parser = ap.ArgumentParser(description='PFC: Main Arc Sorting')
 parser.add_argument('-s', '--sheet', type=str, required=True, help='Excel Spreadsheet in CSV format')
 args = parser.parse_args()
 
-data = pd.read_csv(args.sheet, converters={"Player Name": str}) #Turns column labled Player Name into a str.
+data = pd.read_csv(args.sheet, converters={"Player Name": str, "Preferred Person 1": str, "Preferred Person 2": str, "Unprefered People": str}) #Turns column labled Player Name into a str.
+# Remove leading and trailing spaces
+data['Player Name'] = data['Player Name'].str.strip()
+data['Preferred Person 1'] = data['Preferred Person 1'].str.strip()
+data['Preferred Person 2'] = data['Preferred Person 2'].str.strip()
+data['Unprefered People'] = data['Unprefered People'].str.strip()
+
+#print(data.head)
 ##Might need other columns to be labled string too (Preffered Player 1 and 2 specifically)
 ## Replace N/A with 10 in data (so that they are labled as "last picks")
 
@@ -38,7 +44,7 @@ capacity = data.iloc[0, indexes].to_dict()
 data = data.iloc[1:] #Removes the capacity row
 students_df = data.iloc[:, 1] #Have this take from the Student section of the Excel Sheet
 students = students_df.tolist()
-print(students)
+#print(students)
 
 #   rank[i][j] = how student i ranks house j  (1 = best, larger = worse)
 #This will be inputted from the excel spreadsheet, look within data
@@ -53,17 +59,35 @@ for x in range(len(rank_df.index)):
 
 # friendship (“try to keep us together”) pairs
 # TODO: Update friend_pairs with the correct equation
-"""
--Pair for each person 1 and 2
--IF: if already in the list, skip
--If not, add the pair
--If NAN, skip too
-"""
+
+#-Pair for each person 1 and 2
+#-IF: if already in the list, skip
+#-If not, add the pair
+#-If NAN, skip too
 friends_df = data.iloc[:, [1,(len(data.columns) - 3),(len(data.columns) - 2)]] #Grabing the 1st, 3rd to last, and 2nd to last columns 
-                                                                               #(adjusting for the difference between 0->X-1 and X (total) Column numbering)
-friends_df = friends_df.fillna(value="NONE")
+friends_df = friends_df.replace('', "NONE")
+#friends_df = friends_df.fillna(value="NONE")
+#print(friends_df.head)
 #print(friends_df)
 #print(friends_df.iloc[2, 1])
+
+
+unpreferred_df = data.iloc[:, [1,(len(data.columns) - 1)]] #Grabing the 1st and last columns 
+unpreferred_df = unpreferred_df.replace('', "NONE") #replace empty w/ NONE to make it easier to ignore these
+unpreffered_pairs = [] #undirected
+
+for x in range(len(unpreferred_df.index)): 
+    name = unpreferred_df.iloc[x, 0]
+    unprefPerson = unpreferred_df.iloc[x, 1]
+    
+    #Check if the first Name,uPP is in the unpreffered_pairs list already
+    if (unprefPerson != "NONE"):
+        unpreffered_pairs_list = unprefPerson.split(',') #the unpreferred people is a list, so split on the comma
+        for person in unpreffered_pairs_list:
+            person = person.strip()
+            if (not (((name,person) in unpreffered_pairs))): 
+                unpreffered_pairs.append((name,person))
+    
 
 friend_pairs = []  # undirected
 for x in range(len(friends_df.index)): 
@@ -82,11 +106,17 @@ for x in range(len(friends_df.index)):
             friend_pairs.append((name,prefPerson2))
         }
 
-# TODO: Add enemy pairs ("Do not put us together")
 
-lambda_1 = 2        # weight: how many “rank points” is splitting a pair worth?
-# For enemy pairs would putting the lambda as negative work?
-    # "Points for putting these together"
+#UPDATE: If you need to change the weight of Unpreffered and Preferred pairs, change Lambda_1 and Lambda_2
+        # Lambda_1 correlates to Friendship Pairs (the larger the number, the worse penalty you take for splitting them)
+        # Lambda_2 correlates to Unpreffered Pairs (the more negative the number, the bigger bonus you get for splitting them)
+
+lambda_1 = (len(rank_df) + 1)  # weight: how many “rank points” is splitting a pair worth?
+            # ^^ Splitting the pair will be the same as putting someone in their worst ranked pick (+1)
+lambda_2 = -5                  # weight: how many points is splitting an unpreferred pair worth
+            # ^^ Dont really have a number that would make this the "worst" option considering its like. A negative number. 
+            #  Ig it can be increased if theres still people not being put together
+
 
 # ---------------------------------------------------------------------
 # 2)  MODEL  ----------------------------------------------------------
@@ -99,12 +129,17 @@ x = pl.LpVariable.dicts("x", (students, campaigns), cat="Binary")
 # Binary separation vars for each friendship pair
 delta_1 = pl.LpVariable.dicts("delta", friend_pairs, cat="Binary")
 
+# Binary separation vars for each unpreffered pair
+delta_2 = pl.LpVariable.dicts("delta_unpref", unpreffered_pairs, cat="Binary")
+
 # --- Objective -------------------------------------------------------
 preference_cost = pl.lpSum(rank[i][j] * x[i][j] for i in students for j in campaigns) 
     #^^ This multiplies the rank for each person by the cost for putting them in said campaign.
     #So at the end it should be "the cost for putting I person in J campaign"
 friend_cost     = pl.lpSum(lambda_1 * delta_1[p] for p in friend_pairs)
-prob += preference_cost + friend_cost
+unpref_cost     = pl.lpSum(lambda_2 * delta_2[p] for p in unpreffered_pairs) 
+    #there is the option to make the unpreffered_pairs subtracted from the total. might be better
+prob += preference_cost + friend_cost + unpref_cost
 
 # --- Constraints -----------------------------------------------------
 # (1) each student assigned to exactly one campaign
@@ -119,8 +154,14 @@ for j in campaigns:
 #     delta1_{ik} ≥ |x_{i,j} - x_{k,j}|  for all j
 for (i, k) in friend_pairs:
     for j in campaigns:
-        prob += delta_1[(i, k)] >= x[i][j] - x[k][j]
+        prob += delta_1[(i, k)] >= x[i][j] - x[k][j] #Wanted is 1-1 to equal 0, but at most it will equal 1 (1-0)
         prob += delta_1[(i, k)] >= x[k][j] - x[i][j]
+
+for (i, k) in unpreffered_pairs:
+    for j in campaigns:
+        prob += delta_2[(i, k)] >= x[i][j] + x[k][j] #refersed the signs. have no clue if thats how this works kekwwww
+        prob += delta_2[(i, k)] >= x[k][j] + x[i][j] # Add together, ie 0 + 1 or 0 + 0, you want delta to be greater though, so 1+1 would be bad
+
 
 # ---------------------------------------------------------------------
 # 3)  SOLVE  ----------------------------------------------------------
@@ -143,10 +184,12 @@ print("\nFriendship splits:")
 for (i, k) in friend_pairs:
     split = int(pl.value(delta_1[(i, k)]))
     same  = "Correct" if split == 0 else "Split" 
-    print(f" {i}-{k}: {'same campaign:' if split == 0 else 'different campaigns:'} {same}")
+    print(f" {i}-{k}: {'same campaign:' if split == 0 else 'different campaign:'} {same}")
+
+print("\nUnpreffered splits:")
+for (i, k) in unpreffered_pairs:
+    split = int(pl.value(delta_2[(i, k)]))
+    same  = "Wrong" if split == 0 else "Correct" 
+    print(f" {i}-{k}: {'same campaign:' if split == 0 else 'different campaign:'} {same}")
 
 #"""
-
-
-
-

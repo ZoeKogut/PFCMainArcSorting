@@ -37,8 +37,6 @@ for x in range(3, (campaign_numb+3)): #3 is added because we want the colm numbe
 campaigns = data.iloc[:, indexes].columns.tolist() #Obtain Campaign Names
 
 # capacity of each Campaign
-    #UPDATE: Update this when people have limits for their campaigns
-    #Also Update names to match the ones in [campaigns]
 # TODO: Possibly update this with an option for people to break caps depending on total # of newbies?
 capacity = data.iloc[0, indexes].to_dict()
 data = data.iloc[1:] #Removes the capacity row
@@ -57,20 +55,8 @@ for x in range(len(rank_df.index)):
     rank[students_df.iloc[x]] = (rank_temp) #Add ^^ dictionary as the value associated w/ the name in the [Rank] dictionary
 
 
-# friendship (“try to keep us together”) pairs
-# TODO: Update friend_pairs with the correct equation
-
-#-Pair for each person 1 and 2
-#-IF: if already in the list, skip
-#-If not, add the pair
-#-If NAN, skip too
 friends_df = data.iloc[:, [1,(len(data.columns) - 3),(len(data.columns) - 2)]] #Grabing the 1st, 3rd to last, and 2nd to last columns 
 friends_df = friends_df.replace('', "NONE")
-#friends_df = friends_df.fillna(value="NONE")
-#print(friends_df.head)
-#print(friends_df)
-#print(friends_df.iloc[2, 1])
-
 
 unpreferred_df = data.iloc[:, [1,(len(data.columns) - 1)]] #Grabing the 1st and last columns 
 unpreferred_df = unpreferred_df.replace('', "NONE") #replace empty w/ NONE to make it easier to ignore these
@@ -193,3 +179,4 @@ for (i, k) in unpreffered_pairs:
     print(f" {i}-{k}: {'same campaign:' if split == 0 else 'different campaign:'} {same}")
 
 #"""
+

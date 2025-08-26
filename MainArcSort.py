@@ -27,12 +27,13 @@ data['Unprefered People'] = data['Unprefered People'].str.strip()
 ## Replace N/A with 10 in data (so that they are labled as "last picks")
 
 #Get the number of columns, then subtract 6 
-#   (3 at the front: Timestamp, PlayerName, CharacterName)
+#   (3 at the front: Timestamp, PlayerName, DiscordUser, CharacterName)
 #   (3 at the end: WantedPlayer1, WantedPlayer2, UnwantedPlayer(s))
-campaign_numb = len(data.columns) - (3 + 3)
+campaign_numb = len(data.columns) - (4 + 3)
 indexes = []
-for x in range(3, (campaign_numb+3)): #3 is added because we want the colm numbers of the dataframe, and we're skipping the first 3 colms
+for x in range(4, (campaign_numb+4)): #4 is added because we want the colm numbers of the dataframe, and we're skipping the first 4 colms
     indexes.append(x)
+#print(indexes)
 
 campaigns = data.iloc[:, indexes].columns.tolist() #Obtain Campaign Names
 
@@ -44,14 +45,22 @@ students_df = data.iloc[:, 1] #Have this take from the Student section of the Ex
 students = students_df.tolist()
 #print(students)
 
+discord_tags = dict(zip(data["Player Name"], data["Discord Username"])) 
+    #This is used to print out the tag along with the campaign assignments
+
 #   rank[i][j] = how student i ranks house j  (1 = best, larger = worse)
 #This will be inputted from the excel spreadsheet, look within data
-rank_df = data.iloc[:, [3,4,5,6,7,8,9,10,11]] # Selects the Player name column + the campaign name columns
+rank_df = data.iloc[:, indexes] # Selects the Player name column + the campaign name columns
 rank_df = rank_df.fillna(value=10) # Fill every unfilled value with 10 (ranked last) (All have equal chance of being filled if it gets to that)
+rank_indexes = []
+for x in range(0, campaign_numb): #4 is added because we want the colm numbers of the dataframe, and we're skipping the first 4 colms
+    rank_indexes.append(x)
+
+print(rank_indexes)
 rank = {}
 rank_temp = {}
 for x in range(len(rank_df.index)):
-    rank_temp = dict(zip(campaigns,rank_df.iloc[x,[0,1,2,3,4,5,6,7,8]])) #Make every rank into a dictionary
+    rank_temp = dict(zip(campaigns,rank_df.iloc[x,rank_indexes])) #Make every rank into a dictionary
     rank[students_df.iloc[x]] = (rank_temp) #Add ^^ dictionary as the value associated w/ the name in the [Rank] dictionary
 
 
@@ -61,6 +70,7 @@ friends_df = friends_df.replace('', "NONE")
 unpreferred_df = data.iloc[:, [1,(len(data.columns) - 1)]] #Grabing the 1st and last columns 
 unpreferred_df = unpreferred_df.replace('', "NONE") #replace empty w/ NONE to make it easier to ignore these
 unpreffered_pairs = [] #undirected
+#print(unpreferred_df)
 
 for x in range(len(unpreferred_df.index)): 
     name = unpreferred_df.iloc[x, 0]
@@ -159,9 +169,10 @@ print(f"Total cost = {pl.value(prob.objective):.0f}\n")
 # pretty-print assignment
 by_campaign = {j: [] for j in campaigns}
 for i in students:
+    name_and_tag = i + " (" + discord_tags[i] + ")"
     for j in campaigns:
         if pl.value(x[i][j]) > 0.5:
-            by_campaign[j].append(i)
+            by_campaign[j].append(name_and_tag)
 
 for j in campaigns:
     print(f"{j} ({len(by_campaign[j])}/{capacity[j]}): {', '.join(by_campaign[j])}")
@@ -179,4 +190,3 @@ for (i, k) in unpreffered_pairs:
     print(f" {i}-{k}: {'same campaign:' if split == 0 else 'different campaign:'} {same}")
 
 #"""
-

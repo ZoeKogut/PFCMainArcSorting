@@ -27,7 +27,7 @@ data['Unprefered People'] = data['Unprefered People'].str.strip()
 ## Replace N/A with 10 in data (so that they are labled as "last picks")
 
 #Get the number of columns, then subtract 6 
-#   (3 at the front: Timestamp, PlayerName, DiscordUser, CharacterName)
+#   (4 at the front: Timestamp, PlayerName, DiscordUser, CharacterName)
 #   (3 at the end: WantedPlayer1, WantedPlayer2, UnwantedPlayer(s))
 campaign_numb = len(data.columns) - (4 + 3)
 indexes = []
@@ -190,3 +190,4 @@ for (i, k) in unpreffered_pairs:
     print(f" {i}-{k}: {'same campaign:' if split == 0 else 'different campaign:'} {same}")
 
 #"""
+

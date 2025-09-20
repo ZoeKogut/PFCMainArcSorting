@@ -6,16 +6,27 @@ import argparse as ap
 # This is made for the 2025 Newbie campaign: To change for following years,
 # Seach "UPDATE:" in the search bar and follow the directions.
 
-# API: python MainArcSort.py -s [EXCEL_SPREADSHEET_NAME].csv
+# API: python MainArcSort.py -s CSV_NAME.csv [-b BLACKLIST.csv]
 
 # ---------------------------------------------------------------------
-# 1)  SAMPLE DATA  ----------------------------------------------------
+# 1)  Parse CLI & Data  -----------------------------------------------
 # ---------------------------------------------------------------------
 parser = ap.ArgumentParser(description='PFC: Main Arc Sorting')
 parser.add_argument('-s', '--sheet', type=str, required=True, help='Excel Spreadsheet in CSV format')
+parser.add_argument('-b', '--blacklist', type=str, required=False, help='Blacklist Constraints in CSV format')
 args = parser.parse_args()
 
-data = pd.read_csv(args.sheet, converters={"Player Name": str, "Preferred Person 1": str, "Preferred Person 2": str, "Unprefered People": str}) #Turns column labled Player Name into a str.
+# Parse csv into dataframe with properly typed collumns.
+converters={"Player Name": str, "Preferred Person 1": str, "Preferred Person 2": str, "Unprefered People": str}
+data = pd.read_csv(args.sheet, converters=converters)
+
+# Parse blacklist csv into dataframe
+blacklist = None
+if args.blacklist:
+    blacklist = pd.read_csv(args.blacklist, converters={"Code":str, "Player Name":str})
+    blacklist = tuple(zip(blacklist["Code"], blacklist["Player Name"]))
+print(blacklist)
+
 # Remove leading and trailing spaces
 data['Player Name'] = data['Player Name'].str.strip()
 data['Preferred Person 1'] = data['Preferred Person 1'].str.strip()
@@ -45,7 +56,7 @@ students_df = data.iloc[:, 1] #Have this take from the Student section of the Ex
 students = students_df.tolist()
 #print(students)
 
-discord_tags = dict(zip(data["Player Name"], data["Discord Username"])) 
+discord_tags = dict(zip(data["Player Name"], data["Discord Name"])) 
     #This is used to print out the tag along with the campaign assignments
 
 #   rank[i][j] = how student i ranks house j  (1 = best, larger = worse)
@@ -70,11 +81,14 @@ friends_df = friends_df.replace('', "NONE")
 unpreferred_df = data.iloc[:, [1,(len(data.columns) - 1)]] #Grabing the 1st and last columns 
 unpreferred_df = unpreferred_df.replace('', "NONE") #replace empty w/ NONE to make it easier to ignore these
 unpreffered_pairs = [] #undirected
-#print(unpreferred_df)
+# print(unpreferred_df)
 
 for x in range(len(unpreferred_df.index)): 
     name = unpreferred_df.iloc[x, 0]
     unprefPerson = unpreferred_df.iloc[x, 1]
+    # print(unprefPerson)
+    if not isinstance(unprefPerson, str): 
+        raise ValueError("Sheet Has Improper Final Collumn")
     
     #Check if the first Name,uPP is in the unpreffered_pairs list already
     if (unprefPerson != "NONE"):
@@ -158,13 +172,17 @@ for (i, k) in unpreffered_pairs:
         prob += delta_2[(i, k)] >= x[i][j] + x[k][j] #refersed the signs. have no clue if thats how this works kekwwww
         prob += delta_2[(i, k)] >= x[k][j] + x[i][j] # Add together, ie 0 + 1 or 0 + 0, you want delta to be greater though, so 1+1 would be bad
 
+# (4) Blacklists
+if blacklist is not None:
+    for (j, i) in blacklist:
+        prob += (x[i][j] == 0)
 
 # ---------------------------------------------------------------------
 # 3)  SOLVE  ----------------------------------------------------------
 # ---------------------------------------------------------------------
 prob.solve(pl.PULP_CBC_CMD(msg=False))
 print(f"Status : {pl.LpStatus[prob.status]}")
-print(f"Total cost = {pl.value(prob.objective):.0f}\n")
+print(f"Total cost = {pl.value(prob.objective):.0f} (lower is better)\n")
 
 # pretty-print assignment
 by_campaign = {j: [] for j in campaigns}
@@ -175,7 +193,7 @@ for i in students:
             by_campaign[j].append(name_and_tag)
 
 for j in campaigns:
-    print(f"{j} ({len(by_campaign[j])}/{capacity[j]}): {', '.join(by_campaign[j])}")
+    print(f"{j} ({len(by_campaign[j])}/{int(capacity[j])}): {', '.join(by_campaign[j])}")
 
 print("\nFriendship splits:")
 for (i, k) in friend_pairs:
@@ -188,6 +206,12 @@ for (i, k) in unpreffered_pairs:
     split = int(pl.value(delta_2[(i, k)]))
     same  = "Wrong" if split == 0 else "Correct" 
     print(f" {i}-{k}: {'same campaign:' if split == 0 else 'different campaign:'} {same}")
+
+print("\nBlacklist:")
+if blacklist is not None:
+    for (j, i) in blacklist:
+        banfail = int(pl.value(x[i][j]))
+        print(f" {j}-{i}: Ban {'fail' if banfail else 'succeed'}")
 
 #"""
 
